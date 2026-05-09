@@ -10,6 +10,19 @@ Download: https://github.com/hotbso/AutoGate/releases
 
 Support is only on discord: https://discord.gg/6WBfRbrH5H
 
+## Recent changes
+
+### 1.84
+- Fixed intermittent X-Plane freeze on exit on Windows by avoiding OpenAL shutdown calls during plugin unload.
+- Added startup guard against duplicate AutoGate plugin instances.
+- Added stricter DataRef validation at startup to avoid partial/unsafe initialization.
+- Added defensive null checks and safer fallback handling in gate/aircraft state logic.
+- Hardened WAV/OpenAL loading path checks to avoid invalid file/path edge-case crashes.
+- Improved Windows build reliability in `src/Makefile.mgw64`:
+  - Windows-friendly `clean` target.
+  - Optional OpenAL build fallback (`NO_OPENAL`) when OpenAL dev files are missing.
+  - Updated local SDK/OpenAL path defaults used in this repository layout.
+
 ### Hints for developers
 The only verified working part of the build system is *../src/Makefile.mgw64* for the mingw64 system on Windows and *../src/Makefile.lin64* for Linux.
 A linkable OpenAL32.dll for Windows was obtained as follows:

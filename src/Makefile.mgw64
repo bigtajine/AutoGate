@@ -6,18 +6,33 @@ TARGET=win.xpl
 HEADERS=$(wildcard *.h)
 SOURCES=$(wildcard *.c)
 OBJECTS=$(SOURCES:.c=.o)
-SDK=../../SDK
-OPENAL=../../libOpenAL32
+SDK=../../../SDK/SDK
+OPENAL=../../../libOpenAL32
 PLUGDIR=/e/X-Plane-12/Resources/plugins/AutoGate
 
 CC=x86_64-w64-mingw32-gcc
 LD=x86_64-w64-mingw32-gcc
 
 override CFLAGS+=-mdll -g0 -O2 -s -Wall -fdiagnostics-color -Wno-format-overflow -DWINDOWS -DWIN32 \
-	-I$(OPENAL) -I$(SDK)/CHeaders/XPLM -I$(SDK)/CHeaders/Widgets -DIBM=1 -DVERSION=\"$(VERSION)\"
+	-I$(SDK)/CHeaders/XPLM -I$(SDK)/CHeaders/Widgets -DIBM=1 -DVERSION=\"$(VERSION)\"
 
 LDFLAGS=-shared -static-libgcc -static -lpthread
-LIBS= -L$(OPENAL) -lopenal32 -L$(SDK)/Libraries/Win -lXPLM_64
+LIBS= -L$(SDK)/Libraries/Win -lXPLM_64
+
+# Optional OpenAL support: compile without audio when OpenAL dev files are missing.
+OPENAL_HEADER:=$(wildcard $(OPENAL)/AL/al.h)
+OPENAL_IMPORT:=$(wildcard $(OPENAL)/libopenal32.a)
+
+ifneq ($(strip $(OPENAL_HEADER)),)
+ifneq ($(strip $(OPENAL_IMPORT)),)
+override CFLAGS+= -I$(OPENAL)
+LIBS+= -L$(OPENAL) -lopenal32
+else
+override CFLAGS+= -DNO_OPENAL
+endif
+else
+override CFLAGS+= -DNO_OPENAL
+endif
 
 
 all: $(TARGET)
@@ -29,7 +44,7 @@ $(TARGET): $(OBJECTS)
 	$(LD) -o $(TARGET) $(LDFLAGS) $(OBJECTS) $(LIBS)
 
 clean:
-	rm $(OBJECTS) $(TARGET)
+	-del /q $(OBJECTS) $(TARGET) 2>NUL || exit 0
 
 # install the just compiled target
 install: $(TARGET)

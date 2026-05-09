@@ -61,6 +61,7 @@ static float running_state, beacon_last_pos, beacon_off_ts, beacon_on_ts;  /* ru
 static float newplanecallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
 static void newplane(void);
 static void resetidle(void);
+static int required_datarefs_present(void);
 
 static XPLMDataRef floatref(char*, XPLMGetDataf_f, float*);
 static XPLMDataRef intref(char*, XPLMGetDatai_f, int*);
@@ -168,10 +169,15 @@ static char canonical[16][5] = {
 PLUGIN_API int XPluginStart(char *outName, char *outSig, char *outDesc)
 {
     char buffer[PATH_MAX], *c;
+    XPLMPluginID existing;
 
     sprintf(outName, "%s v%s", pluginName, VERSION);
     strcpy(outSig,  pluginSig);
     strcpy(outDesc, pluginDesc);
+
+    existing = XPLMFindPluginBySignature(pluginSig);
+    if (existing != XPLM_NO_PLUGIN_ID && existing != XPLMGetMyID())
+        return xplog("Can't initialise - another AutoGate instance is already loaded.");
 
     xplog("startup v" VERSION);
 
@@ -182,7 +188,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSig, char *outDesc)
     if ((c = strrchr(buffer, '/')))
     {
         *c ='\0';
-        if (!strcmp(c-3, "/64"))
+        if ((c - buffer) >= 3 && !strcmp(c-3, "/64"))
             *(c-3) = '\0';		/* plugins one level down on some builds, so go up */
 
         if ((c = strrchr(buffer, '/')))
@@ -218,6 +224,9 @@ PLUGIN_API int XPluginStart(char *outName, char *outSig, char *outDesc)
     ref_paused         =XPLMFindDataRef("sim/time/paused");
     ref_view_external  =XPLMFindDataRef("sim/graphics/view/view_is_external");
 
+    if (!required_datarefs_present())
+        return xplog("Can't initialise - one or more required DataRefs are missing.");
+
     /* Published Datarefs */
     ref_vert     =floatref("marginal.org.uk/autogate/vert", getgatefloat, &vert);
     ref_lat      =floatref("marginal.org.uk/autogate/lat",  getgatefloat, &lat);
@@ -234,6 +243,10 @@ PLUGIN_API int XPluginStart(char *outName, char *outSig, char *outDesc)
     ref_azimuth  =floatref("marginal.org.uk/dgs/azimuth",   getdgsfloat, &azimuth);
     ref_distance =floatref("marginal.org.uk/dgs/distance",  getdgsfloat, &distance);
     ref_distance2=floatref("marginal.org.uk/dgs/distance2", getdgsfloat, &distance2);
+    if (!ref_vert || !ref_lat || !ref_moving ||
+        !ref_status || !ref_icao || !ref_id1 || !ref_id2 || !ref_id3 || !ref_id4 ||
+        !ref_lr || !ref_track || !ref_azimuth || !ref_distance || !ref_distance2)
+        return xplog("Can't initialise - failed to register one or more AutoGate DataRefs.");
 
 #ifdef DEBUG
     XPLMCreateWindow_t cw = {
@@ -260,7 +273,10 @@ PLUGIN_API void XPluginStop(void)
     XPLMUnregisterFlightLoopCallback(newplanecallback, NULL);
     XPLMUnregisterFlightLoopCallback(alertcallback, NULL);
     XPLMUnregisterFlightLoopCallback(initsoundcallback, NULL);
-    closesound();
+    /*
+     * On some XP12 Windows setups, OpenAL teardown at process shutdown can
+     * intermittently stall. Avoid touching OpenAL during plugin unload.
+     */
 }
 
 PLUGIN_API int XPluginEnable(void)
@@ -317,7 +333,7 @@ static void newplane(void)
     else
         door_x=door_y=door_z=0;
 
-    if ((!door_x || plane_type==15) && XPLMGetDatab(ref_acf_descrip, acf_descrip, 0, 128))
+    if ((!door_x || plane_type==15) && ref_acf_descrip!=NULL && XPLMGetDatab(ref_acf_descrip, acf_descrip, 0, 128))
         /* Try descriptions */
         for (i=0; i<sizeof(planedb)/sizeof(db_t); i++)
             if (strstr(acf_descrip, planedb[i].key) && (door_x || planedb[i].lat))
@@ -326,9 +342,11 @@ static void newplane(void)
                     plane_type=planedb[i].type;
                 if (!door_x)
                 {
+                    float cg_y = ref_acf_cg_y ? XPLMGetDataf(ref_acf_cg_y) : 0;
+                    float cg_z = ref_acf_cg_z ? XPLMGetDataf(ref_acf_cg_z) : 0;
                     door_x = F2M * planedb[i].lat;
-                    door_y = F2M * (planedb[i].vert - XPLMGetDataf(ref_acf_cg_y));	/* Adjust relative to static cog */
-                    door_z = F2M * (planedb[i].lng  - XPLMGetDataf(ref_acf_cg_z));	/* Adjust relative to static cog */
+                    door_y = F2M * (planedb[i].vert - cg_y);	/* Adjust relative to static cog */
+                    door_z = F2M * (planedb[i].lng  - cg_z);	/* Adjust relative to static cog */
                 }
                 break;
             }
@@ -367,13 +385,15 @@ static void resetidle(void)
     azimuth=distance=distance2=0;
     stopalert();
 
-    running_state = beacon_last_pos = XPLMGetDatai(ref_beacon);
+    running_state = beacon_last_pos = ref_beacon ? XPLMGetDatai(ref_beacon) : 0;
     beacon_on_ts = beacon_off_ts = -10.0;
 }
 
 static int check_running()
 {
-    float now = XPLMGetDataf(ref_total_running_time_sec);
+    float now = ref_total_running_time_sec ? XPLMGetDataf(ref_total_running_time_sec) : 0;
+    if (!ref_beacon)
+        return running_state;
 
     /* when checking the beacon guard against power transition when switching
        to the APU generator (e.g. for the ToLiss fleet.
@@ -402,6 +422,9 @@ static float getgatefloat(XPLMDataRef inRefcon)
     float plane_x, plane_z;
     float object_x, object_y, object_z, object_h;
     float local_x, local_y, local_z;
+
+    if (!required_datarefs_present())
+        return 0;
 
     now = XPLMGetDataf(ref_total_running_time_sec);
     object_x = XPLMGetDataf(ref_draw_object_x);
@@ -506,6 +529,9 @@ static int getdgs(void)
     float now, object_x, object_y, object_z;
     float local_x, local_y, local_z;
 
+    if (!required_datarefs_present())
+        return 0;
+
     if (state <= IDLE) return 0;	/* Only interested in DGSs if we're in range of a gate */
 
     now = XPLMGetDataf(ref_total_running_time_sec);
@@ -606,6 +632,12 @@ static int localpos(float object_x, float object_y, float object_z, float object
     float x, y, z;
     float object_hcos, object_hsin;
 
+    if (!ref_plane_x || !ref_plane_y || !ref_plane_z || !ref_plane_psi)
+    {
+        *local_x = *local_y = *local_z = 0;
+        return -1;
+    }
+
     plane_x=XPLMGetDataf(ref_plane_x);
     plane_y=XPLMGetDataf(ref_plane_y);
     plane_z=XPLMGetDataf(ref_plane_z);
@@ -625,6 +657,14 @@ static int localpos(float object_x, float object_y, float object_z, float object
     *local_z=object_hcos*(z-object_z)-object_hsin*(x-object_x);
 
     return 0;	/* Return value has no meaning */
+}
+
+static int required_datarefs_present(void)
+{
+    return ref_plane_x && ref_plane_y && ref_plane_z && ref_plane_psi &&
+           ref_beacon &&
+           ref_draw_object_x && ref_draw_object_y && ref_draw_object_z && ref_draw_object_psi &&
+           ref_total_running_time_sec;
 }
 
 

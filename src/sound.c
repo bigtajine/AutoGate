@@ -87,7 +87,7 @@ static char *find_chunk(char *file_begin, char *file_end, int desired_id, int sw
 {
     if (swapped) desired_id = SWAP_32(desired_id);
 
-    while (file_begin < file_end)
+    while (file_begin + sizeof(chunk_header) <= file_end)
     {
         chunk_header *h = (chunk_header *) file_begin;
         int chunk_size;
@@ -128,15 +128,28 @@ ALuint load_wave(const char *file_name)
 
     // First: we open the file and copy it into a single large memory buffer for processing.
     if (!(h = fopen(file_name, "rb"))) return xplog("Can't open WAV file.");
-    fseek(h, 0, SEEK_END);
+    if (fseek(h, 0, SEEK_END) != 0)
+    {
+        fclose(h);
+        return xplog("Can't seek WAV file.");
+    }
     file_size = ftell(h);
-    fseek(h, 0, SEEK_SET);
+    if (file_size <= 0 || file_size > (1<<26))
+    {
+        fclose(h);
+        return xplog("WAV file has invalid size.");
+    }
+    if (fseek(h, 0, SEEK_SET) != 0)
+    {
+        fclose(h);
+        return xplog("Can't rewind WAV file.");
+    }
     if (!(mem = malloc(file_size)))
     {
         fclose(h);
         return xplog("Out of memory!");
     }
-    if (fread(mem, 1, file_size, h) != file_size)
+    if (fread(mem, 1, (size_t)file_size, h) != (size_t)file_size)
     {
         fclose(h);
         FAIL("Can't read WAV file.");
@@ -285,7 +298,7 @@ float initsoundcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLa
     posixify(buffer);
     if (!(c=strrchr(buffer, '/'))) return xplog("Can't find my plugin");
     *(c+1)='\0';
-    if (!strcmp(c-3, "/64/")) { *(c-2)='\0'; }	/* plugins one level down on some builds, so go up */
+    if ((c-buffer) >= 3 && !strcmp(c-3, "/64/")) { *(c-2)='\0'; }	/* plugins one level down on some builds, so go up */
     strcat(buffer, "alert.wav");
     if (!(snd_buffer = load_wave(buffer))) return 0;
     CHECKERR("Can't buffer sound data.");
