@@ -1,14 +1,16 @@
 # AutoGate animated jetway and docking guidance system kit
 
-## Note
-This a a fork of the original AutoGate 1.72 that was abandoned 2017 with changes to make in usable on XP12.\
-So the main goal is to just compile the plugin code for XP12.
+## Fork status
+This repository is based on [Marginal/AutoGate](https://github.com/Marginal/AutoGate) and later community fork work.
 
-Versioning starts with 1.80.
+The original project effectively stopped at AutoGate 1.72 (2017). This fork continues maintenance for modern X-Plane, especially XP12 compatibility and Windows build/runtime stability.
 
-Download: https://github.com/hotbso/AutoGate/releases
+- Fork base: `Marginal/AutoGate`
+- Starting code snapshot used here: `hotbso/AutoGate` release `1.82`
+- Fork versioning starts at `1.80` (original upstream ended at `1.72`)
+- Historical reference fork: `hotbso/AutoGate`
 
-Support is only on discord: https://discord.gg/6WBfRbrH5H
+This project is community-maintained and is not officially affiliated with Laminar Research, Marginal, hotbso, or GitHub account owners referenced above.
 
 ## Recent changes
 
