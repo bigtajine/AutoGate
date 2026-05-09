@@ -1,0 +1,29 @@
+AutoGate plugin - Release 1.84 (Windows)
+========================================
+
+This is an XP12-focused community fork build for Windows (`win.xpl`).
+
+Base lineage
+------------
+- Upstream base: `Marginal/AutoGate`
+- Starting snapshot used: `hotbso/AutoGate` `1.82`
+
+Changes in 1.84
+---------------
+- Fixed common XP12 exit freeze on Windows (OpenAL unload path).
+- Added duplicate AutoGate instance guard at startup.
+- Added stricter DataRef validation and null-safe runtime guards.
+- Hardened WAV/OpenAL path and buffer handling.
+- Improved Windows build reliability (`src/Makefile.mgw64`).
+
+Install (Windows)
+-----------------
+- Quit X-Plane.
+- Remove duplicate/old AutoGate plugin copies.
+- Copy `AutoGate` into `X-Plane/Resources/plugins`.
+- Ensure `win.xpl` is in `X-Plane/Resources/plugins/AutoGate/64`.
+- Start X-Plane and verify in `Plugins -> Plugin Admin`.
+
+License
+-------
+Plugin code in `src` is GNU LGPL v2.1.
