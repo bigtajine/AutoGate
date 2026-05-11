@@ -14,6 +14,16 @@ This project is community-maintained and is not officially affiliated with Lamin
 
 ## Recent changes
 
+### 1.86
+- Fixed jetway re-dock behavior after undocking while still parked on stand.
+- Resolved a state-machine edge case where AutoGate could remain in a non-rearm state
+  until the aircraft moved far forward/sideways before docking could trigger again.
+
+### 1.85
+- Kept alert audio enabled by default on XP12/Windows.
+- Added optional troubleshooting override: `AUTOGATE_SAFE_NO_AUDIO=1` to disable alert audio at startup.
+- Added runtime OpenAL fail-closed guards: if OpenAL calls start failing, alert audio is disabled for the session to prioritize sim stability.
+
 ### 1.84
 - Fixed intermittent X-Plane freeze on exit on Windows by avoiding OpenAL shutdown calls during plugin unload.
 - Added startup guard against duplicate AutoGate plugin instances.
@@ -36,6 +46,18 @@ gendef OpenAL32.dll
 dlltool -d OpenAL32.def -D OpenAL32.dll -k -a -l libopenal32.a -v
 ```
 - link against libopenal32.a and put OpenAL32.dll into the plugin
+
+### Troubleshooting audio issues (Windows)
+If you get crackling, freezes, or startup issues that may be related to alert audio,
+disable AutoGate audio for testing:
+- Temporary (current terminal session only):
+  - PowerShell: `$env:AUTOGATE_SAFE_NO_AUDIO="1"`
+  - CMD: `set AUTOGATE_SAFE_NO_AUDIO=1`
+- Persistent (new terminals after restart):
+  - PowerShell: `setx AUTOGATE_SAFE_NO_AUDIO 1`
+
+After setting it, restart X-Plane and test again.
+To re-enable normal audio behavior, remove/unset the variable or set it to `0`.
 
 ## Original README
 This kit allows [X-Plane](http://www.x-plane.com/) scenery designers to add animated jetways and docking guidance systems (DGS) to scenery packages. Two types of jetway and four types of DGS are included.

@@ -16,7 +16,7 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD ul_reason, LPVOID lpReserved)
 
 /* Globals */
 static const char pluginName[]="AutoGate";
-static const char pluginSig[] ="Marginal.AutoGate-hotbso";
+static const char pluginSig[] ="Marginal.AutoGate-bigtajine";
 static const char pluginDesc[]="Manages boarding bridges and DGSs";
 
 static XPLMWindowID windowId = NULL;
@@ -28,6 +28,7 @@ static float door_x, door_y, door_z;		/* door offset relative to ref point */
 /* Datarefs */
 static XPLMDataRef ref_plane_x, ref_plane_y, ref_plane_z, ref_plane_psi;
 static XPLMDataRef ref_beacon;
+static XPLMDataRef ref_engn_running;
 static XPLMDataRef ref_draw_object_x, ref_draw_object_y, ref_draw_object_z, ref_draw_object_psi;
 static XPLMDataRef ref_acf_descrip, ref_acf_icao;
 static XPLMDataRef ref_acf_cg_y, ref_acf_cg_z;
@@ -51,6 +52,9 @@ static float last_gate_update = 0;		/* and the time we examined it */
 float gate_x, gate_y, gate_z, gate_h;		/* active gate */
 static float gate_update=0;			/* and the time we examined it */
 int gate_autogate;				/* active gate is an AutoGate, not a standalone dummy */
+static int pending_reposition = 0;
+static float pending_plane_x = 0;
+static float pending_plane_z = 0;
 
 static float last_dgs_x, last_dgs_y, last_dgs_z;	/* last dgs object examined */
 static float last_dgs_update = 0;		/* and the time we examined it */
@@ -208,6 +212,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSig, char *outDesc)
     ref_plane_z        =XPLMFindDataRef("sim/flightmodel/position/local_z");
     ref_plane_psi      =XPLMFindDataRef("sim/flightmodel/position/psi");
     ref_beacon         =XPLMFindDataRef("sim/cockpit2/switches/beacon_on");
+    ref_engn_running   =XPLMFindDataRef("sim/flightmodel/engine/ENGN_running");
     ref_draw_object_x  =XPLMFindDataRef("sim/graphics/animation/draw_object_x");
     ref_draw_object_y  =XPLMFindDataRef("sim/graphics/animation/draw_object_y");
     ref_draw_object_z  =XPLMFindDataRef("sim/graphics/animation/draw_object_z");
@@ -300,6 +305,17 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFromWho, int inMessage, voi
 /* Reset new plane state after drawing */
 static float newplanecallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon)
 {
+    if (pending_reposition && ref_plane_x && ref_plane_z)
+    {
+        /*
+         * Apply the one-shot alignment adjustment from a flight loop callback,
+         * not from an object animation callback, to avoid XP12 render-thread stalls.
+         */
+        XPLMSetDataf(ref_plane_x, pending_plane_x);
+        XPLMSetDataf(ref_plane_z, pending_plane_z);
+        pending_reposition = 0;
+    }
+
     if (state == NEWPLANE) state = IDLE;
     return 0;	/* Don't call again */
 }
@@ -387,6 +403,22 @@ static void resetidle(void)
 
     running_state = beacon_last_pos = ref_beacon ? XPLMGetDatai(ref_beacon) : 0;
     beacon_on_ts = beacon_off_ts = -10.0;
+    pending_reposition = 0;
+}
+
+static int any_engine_running(void)
+{
+    int en[8], i, n;
+
+    if (!ref_engn_running)
+        return 0;
+    n = XPLMGetDatavi(ref_engn_running, en, 0, 8);
+    if (n <= 0)
+        return 0;
+    for (i = 0; i < n; i++)
+        if (en[i])
+            return 1;
+    return 0;
 }
 
 static int check_running()
@@ -410,6 +442,11 @@ static int check_running()
             beacon_off_ts = now;
             beacon_last_pos = 0;
         } else if (now > beacon_off_ts + 3.0)
+            running_state = 0;
+        /* Parked for docking: beacon off and no engine running. Skip the 3s
+           beacon-off debounce so GOOD -> ENGAGE is not blocked after shutdown
+           (disabling the plugin used to "fix" this by re-syncing in resetidle). */
+        if (!beacon && ref_engn_running && !any_engine_running())
             running_state = 0;
    }
 
@@ -490,15 +527,20 @@ static float getgatefloat(XPLMDataRef inRefcon)
         {
             /* Fudge plane's position to line up with this gate */
             float object_hcos, object_hsin;
+            float target_plane_x, target_plane_z;
 
             object_hcos = cosf(object_h);
             object_hsin = sinf(object_h);
-            XPLMSetDataf(ref_plane_x, plane_x + local_z * object_hsin - local_x * object_hcos);
-            XPLMSetDataf(ref_plane_z, plane_z - local_z * object_hcos - local_x * object_hsin);
-            localpos(object_x, object_y, object_z, object_h, &local_x, &local_y, &local_z);	/* recalc */
+            target_plane_x = plane_x + local_z * object_hsin - local_x * object_hcos;
+            target_plane_z = plane_z - local_z * object_hcos - local_x * object_hsin;
+            pending_plane_x = target_plane_x;
+            pending_plane_z = target_plane_z;
+            pending_reposition = 1;
+            XPLMSetFlightLoopCallbackInterval(newplanecallback, -1, 1, NULL);
 
-            int running = check_running();
-            state = running ? TRACK : DOCKED;
+            /* Parked at gate on load: always use DGS lead-in and ENGAGE animation.
+             * (Do not jump straight to DOCKED; jetways still auto-disconnect when running.) */
+            state = TRACK;
         }
         else if (!door_x)
         {
@@ -823,6 +865,10 @@ static void updaterefs(float now, float local_x, float local_y, float local_z)
         /* Blank */
         if (local_z-GOOD_Z > AZI_Z || fabsf(local_x) > AZI_X)
             /* Go back to lead-in */
+            state=TRACK;
+        else if (!running && locgood)
+            /* Undocked but still on the stand: old logic never left DISENGAGED unless
+             * you rolled ~AZI_Z forward or >AZI_X sideways. Re-arm TRACK when parked. */
             state=TRACK;
         break;
 

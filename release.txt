@@ -1,4 +1,4 @@
-AutoGate plugin - Release 1.84 (Windows)
+AutoGate plugin - Release 1.86 (Windows)
 ========================================
 
 This is an XP12-focused community fork build for Windows (`win.xpl`).
@@ -8,13 +8,24 @@ Base lineage
 - Upstream base: `Marginal/AutoGate`
 - Starting snapshot used: `hotbso/AutoGate` `1.82`
 
-Changes in 1.84
+Changes in 1.86
 ---------------
-- Fixed common XP12 exit freeze on Windows (OpenAL unload path).
-- Added duplicate AutoGate instance guard at startup.
-- Added stricter DataRef validation and null-safe runtime guards.
-- Hardened WAV/OpenAL path and buffer handling.
-- Improved Windows build reliability (`src/Makefile.mgw64`).
+- Fixed jetway re-dock behavior after undocking while still parked on stand.
+- Resolved a state-machine edge case that could keep AutoGate in a non-rearm state
+  until the aircraft moved far enough from the stop box.
+- Packaged as **1.86**; plugin reports this version via `VERSION` in `version.mak`.
+- Includes the same fixes and behavior as the previous **1.85** notes below.
+
+Changes in 1.85
+---------------
+- Moved NEWPLANE alignment write (`sim/flightmodel/position/local_x/z`) out of
+  the object animation dataref callback and into the flight loop callback to
+  avoid XP12 render-time stalls/freezes on Windows.
+- Kept alert audio enabled by default on XP12/Windows.
+- Added optional safety override: set environment variable
+  `AUTOGATE_SAFE_NO_AUDIO=1` to force audio off for troubleshooting.
+- Added fail-closed OpenAL guards: if runtime OpenAL calls error, AutoGate
+  disables alert audio for the session instead of repeatedly retrying.
 
 Install (Windows)
 -----------------
@@ -23,6 +34,19 @@ Install (Windows)
 - Copy `AutoGate` into `X-Plane/Resources/plugins`.
 - Ensure `win.xpl` is in `X-Plane/Resources/plugins/AutoGate/64`.
 - Start X-Plane and verify in `Plugins -> Plugin Admin`.
+
+Troubleshooting audio issues (Windows)
+--------------------------------------
+If you get crackling, freezes, or startup issues that may be related to alert audio,
+disable AutoGate audio for testing:
+- Temporary (current terminal session only):
+  - PowerShell: `$env:AUTOGATE_SAFE_NO_AUDIO="1"`
+  - CMD: `set AUTOGATE_SAFE_NO_AUDIO=1`
+- Persistent (new terminals after restart):
+  - PowerShell: `setx AUTOGATE_SAFE_NO_AUDIO 1`
+
+After setting it, restart X-Plane and test again.
+To re-enable normal audio behavior, remove/unset the variable or set it to `0`.
 
 License
 -------

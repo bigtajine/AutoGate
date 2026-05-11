@@ -10,6 +10,9 @@
 #undef TESTSOUND
 
 #include "autogate.h"
+#if IBM
+#include <stdlib.h>
+#endif
 
 #ifdef NO_OPENAL
 XPLMDataRef ref_audio, ref_paused, ref_view_external;
@@ -31,6 +34,7 @@ static ALCcontext *my_ctx = NULL;
 ALuint snd_src = 0;			// Sample source and buffer - this is the one "sound" we play.
 static ALuint snd_buffer = 0;
 static const ALfloat zero[3] = { 0 };
+static int sound_enabled = 1;
 
 XPLMDataRef ref_audio, ref_paused, ref_view_external;
 
@@ -229,6 +233,25 @@ float initsoundcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLa
 {
     char buffer[PATH_MAX], *c;
     ALCcontext *old_ctx;
+#if IBM
+    int xplm_version = 0, xplane_version = 0;
+    XPLMHostApplicationID host_id = xplm_Host_Unknown;
+#endif
+
+#if IBM
+    XPLMGetVersions(&xplm_version, &xplane_version, &host_id);
+    if (xplane_version >= 12000)
+    {
+        const char *disable_audio = getenv("AUTOGATE_SAFE_NO_AUDIO");
+        if (disable_audio && *disable_audio && strcmp(disable_audio, "0"))
+        {
+            sound_enabled = 0;
+            xplog("Audio disabled by AUTOGATE_SAFE_NO_AUDIO.");
+            return 0;
+        }
+        xplog("XP12 on Windows detected - alert audio remains enabled.");
+    }
+#endif
 
     if (!(old_ctx = alcGetCurrentContext()))
     {
@@ -364,7 +387,13 @@ void closesound()
 /* Play our alert sound */
 void playalert()
 {
-    if (!snd_src || !XPLMGetDatai(ref_audio)) return;
+    if (!sound_enabled || !snd_src || !XPLMGetDatai(ref_audio)) return;
+    if (alGetError() != AL_NO_ERROR)
+    {
+        sound_enabled = 0;
+        xplog("Disabling alert audio after OpenAL error in playalert.");
+        return;
+    }
     XPLMSetFlightLoopCallbackInterval(alertcallback, -1, 1, NULL);	/* for updating sound position */
     alertcallback(0, 0, 0, NULL);		/* Call it now before we start */
 #ifdef MAKECONTEXT
@@ -383,8 +412,8 @@ void playalert()
 
 void stopalert()
 {
-    if (!snd_src) return;
     XPLMSetFlightLoopCallbackInterval(alertcallback, 0, 1, NULL);	/* stop */
+    if (!sound_enabled || !snd_src) return;
 #ifdef MAKECONTEXT
     if (my_ctx)
     {
@@ -407,6 +436,9 @@ float alertcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFl
     XPLMCameraPosition_t camera;	/* X-Plane's camera position and orientation in OpenGL space */
     ALfloat snd_rel[3];			/* Alert sound's position relative to that */
     float x, z, cos_h, sin_h;
+
+    if (!sound_enabled || !snd_src)
+        return 0;
 
 #ifdef MAKECONTEXT
     ALCcontext *old_ctx;
@@ -456,6 +488,13 @@ float alertcallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFl
     alSourcefv(snd_src, AL_POSITION, snd_rel);
 
     alSourcef(snd_src, AL_GAIN, XPLMGetDatai(ref_view_external) ? GAIN_EXTERNAL : GAIN_INTERNAL);
+    if (alGetError() != AL_NO_ERROR)
+    {
+        sound_enabled = 0;
+        stopalert();
+        xplog("Disabling alert audio after OpenAL error in alertcallback.");
+        return 0;
+    }
 
 #ifdef MAKECONTEXT
     if (my_ctx) alcMakeContextCurrent(old_ctx);

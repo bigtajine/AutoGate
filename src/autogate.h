@@ -77,7 +77,7 @@ static const float DURATION=15;	/* Time to engage/disengage */
 
 static const float POLLTIME=5;	/* How often to check we're still in range of our gate */
 
-/* Alert sound pitch */
+/* Alert sound gain */
 static const float GAIN_EXTERNAL = 1.0f;
 static const float GAIN_INTERNAL = 0.5f;	/* Quieter in internal views */
 
