@@ -1,0 +1,61 @@
+# Universal 64-bit macOS plugin (mac.xpl: arm64 + x86_64). Requires Xcode CLI tools.
+#
+# Unzip the official X-Plane SDK next to `src` (AutoGate/SDK/...), then from this directory:
+#   make -f Makefile.mac
+# Or:
+#   make -f Makefile.mac SDK=/path/to/SDK NO_OPENAL=1
+#
+# Cross-building from Linux with osxcross is not supported here; see Makefile.osxcross.
+
+PLUGINS?=../../../../X-Plane-12/Resources/plugins/AutoGate
+SDK?=../SDK
+OBJDIR=./OBJ_mac
+
+include ../version.mak
+
+TARGET=mac.xpl
+CC=clang
+ARCHFLAGS=-arch arm64 -arch x86_64
+MINMAC=-mmacosx-version-min=11.0
+
+HEADERS=$(wildcard *.h)
+SOURCES=$(wildcard *.c)
+OBJECTS=$(addprefix $(OBJDIR)/,$(SOURCES:.c=.o))
+
+DEFS=-DAPL=1 -fPIC -fvisibility=hidden -ffast-math -O2 -Wall \
+	-I$(SDK)/CHeaders/XPLM \
+	-DVERSION=\"$(VERSION)\" \
+	$(MINMAC)
+
+CFLAGS=$(ARCHFLAGS) $(DEFS)
+LNFLAGS=$(ARCHFLAGS) $(MINMAC) -dynamiclib \
+	-Wl,-exported_symbols_list,linkscript.mac \
+	-fvisibility=hidden
+
+LIBS=-F$(SDK)/Libraries/Mac -framework XPLM
+
+ifneq ($(strip $(NO_OPENAL)),1)
+LIBS+=-framework OpenAL
+else
+CFLAGS+=-DNO_OPENAL
+endif
+
+.PHONY: all clean install
+
+all: $(TARGET)
+
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
+
+$(OBJDIR)/%.o: %.c $(HEADERS) ../version.mak | $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(TARGET): $(OBJECTS)
+	$(CC) -o $@ $(LNFLAGS) $(OBJECTS) $(LIBS)
+
+clean:
+	rm -rf $(OBJDIR) $(TARGET)
+
+install: $(TARGET)
+	mkdir -p "$(PLUGINS)/64"
+	cp -p $(TARGET) "$(PLUGINS)/64/."

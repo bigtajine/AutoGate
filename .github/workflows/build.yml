@@ -1,0 +1,97 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential libopenal-dev unzip
+      - name: Download X-Plane SDK 4.3.0
+        run: |
+          curl -fsSL -o /tmp/XPSDK430.zip "https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK430.zip"
+          unzip -q /tmp/XPSDK430.zip -d "${GITHUB_WORKSPACE}"
+      - name: Build lin.xpl
+        working-directory: src
+        run: make -f Makefile.lin64 SDK="${GITHUB_WORKSPACE}/SDK"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lin-xpl
+          path: src/lin.xpl
+
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download X-Plane SDK 4.3.0
+        run: |
+          curl -fsSL -o /tmp/XPSDK430.zip "https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK430.zip"
+          unzip -q /tmp/XPSDK430.zip -d "${GITHUB_WORKSPACE}"
+      - name: Build mac.xpl
+        working-directory: src
+        run: make -f Makefile.mac SDK="${GITHUB_WORKSPACE}/SDK"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-xpl
+          path: src/mac.xpl
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+      - name: Download X-Plane SDK 4.3.0
+        shell: bash
+        run: |
+          set -e
+          curl -fsSL -o /tmp/XPSDK430.zip "https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK430.zip"
+          unzip -q /tmp/XPSDK430.zip -d "${GITHUB_WORKSPACE}"
+      - name: Build win.xpl
+        shell: msys2 {0}
+        working-directory: src
+        run: mingw32-make -f Makefile.mgw64 SDK="../SDK" NO_OPENAL=1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win-xpl
+          path: src/win.xpl
+
+  fat64:
+    needs: [linux, mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: win-xpl
+          path: dl/win
+      - uses: actions/download-artifact@v4
+        with:
+          name: lin-xpl
+          path: dl/lin
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac-xpl
+          path: dl/mac
+      - name: Assemble fat plugin 64 layout
+        run: |
+          set -e
+          mkdir -p out/AutoGate/64
+          cp -v dl/win/win.xpl out/AutoGate/64/
+          cp -v dl/lin/lin.xpl out/AutoGate/64/
+          cp -v dl/mac/mac.xpl out/AutoGate/64/
+          (cd out && zip -r ../AutoGate-fat64.zip AutoGate)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutoGate-fat64-all-xpl
+          path: AutoGate-fat64.zip

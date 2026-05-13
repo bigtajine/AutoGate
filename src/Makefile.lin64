@@ -1,5 +1,15 @@
-PLUGINS=../../../../X-Plane-12/Resources/plugins/AutoGate
-SDK=../../SDK
+# 64-bit Linux plugin (lin.xpl). Requires X-Plane SDK and OpenAL headers.
+#
+# Typical layout: unzip the official SDK so you have AutoGate/SDK/CHeaders/...
+# From this directory:
+#   make -f Makefile.lin64
+# Or:
+#   make -f Makefile.lin64 SDK=/path/to/SDK NO_OPENAL=1
+#
+# Debian/Ubuntu: sudo apt-get install build-essential libopenal-dev
+
+PLUGINS?=../../../../X-Plane-12/Resources/plugins/AutoGate
+SDK?=../SDK
 OBJDIR=./OBJ_lx
 
 include ../version.mak
@@ -7,31 +17,47 @@ include ../version.mak
 TARGET=lin.xpl
 HEADERS=$(wildcard *.h)
 SOURCES=$(wildcard *.c)
-SOURCES_C=$(wildcard *.c)
-SOURCES_CPP=$(wildcard *.cpp)
-OBJECTS_=$(SOURCES_C:.c=.o) $(SOURCES_CPP:.cpp=.o)
-OBJECTS=$(addprefix $(OBJDIR)/, $(OBJECTS_))
-$(info $(OBJECTS))
+OBJECTS=$(addprefix $(OBJDIR)/,$(SOURCES:.c=.o))
 
-CFLAGS=-Wall -I$(SDK)/CHeaders/XPLM -fPIC -DLIN=1 -fno-stack-protector \
-       -DVERSION=\"$(VERSION)\"
+CFLAGS=-m64 -Wall -fPIC -fvisibility=hidden -O2 -fno-stack-protector \
+	-DLIN=1 -I$(SDK)/CHeaders/XPLM \
+	-DVERSION=\"$(VERSION)\"
 
+OPENAL_PKG:=$(shell pkg-config --exists openal 2>/dev/null && echo yes)
+OPENAL_H:=$(wildcard /usr/include/AL/al.h /usr/local/include/AL/al.h)
 
-LNFLAGS=-shared -rdynamic -nodefaultlibs -undefined_warning
-LIBS=-lopenal
+ifneq ($(strip $(NO_OPENAL)),1)
+ifeq ($(OPENAL_PKG),yes)
+CFLAGS+=$(shell pkg-config --cflags openal)
+OPENAL_LIBS=$(shell pkg-config --libs openal)
+else ifneq ($(strip $(OPENAL_H)),)
+OPENAL_LIBS=-lopenal
+else
+override CFLAGS+=-DNO_OPENAL
+endif
+else
+override CFLAGS+=-DNO_OPENAL
+endif
+
+LNFLAGS=-m64 -shared -rdynamic -Wl,--version-script=linkscript.lin
+LIBS=-lm -ldl -lpthread $(OPENAL_LIBS)
+
+.PHONY: all clean install
 
 all: $(TARGET)
-    $(shell [ -d $(OBJDIR) ] || mkdir $(OBJDIR))
 
-$(OBJDIR)/%.o: %.c $(HEADERS)
-	$(CC) $(CFLAGS) -o $@ -c $<
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
+
+$(OBJDIR)/%.o: %.c $(HEADERS) ../version.mak | $(OBJDIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(TARGET): $(OBJECTS)
-	$(CC) -o $(TARGET) $(LNFLAGS) $(OBJECTS) $(LIBS)
+	$(CC) $(LNFLAGS) -o $@ $(OBJECTS) $(LIBS)
 
 clean:
-	rm -f $(OBJECTS) $(TARGET)
+	rm -rf $(OBJDIR) $(TARGET)
 
 install: $(TARGET)
-	cp -p $(TARGET) $(PLUGINS)/64/.
-        
+	mkdir -p "$(PLUGINS)/64"
+	cp -p $(TARGET) "$(PLUGINS)/64/."

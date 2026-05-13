@@ -1,0 +1,9 @@
+.git
+.github
+SDK
+**/OBJ_*
+**/OBJ_lx
+**/OBJ_mac
+**/OBJ_osx
+*.zip
+openal-soft-*

@@ -47,7 +47,22 @@ These Makefile updates shipped in the same first **1.84** tagged build as **1.83
 - Hardened WAV/OpenAL loading path checks to avoid invalid file/path edge-case crashes.
 
 ### Hints for developers
-The only verified working part of the build system is *../src/Makefile.mgw64* for the mingw64 system on Windows and *../src/Makefile.lin64* for Linux.
+**X-Plane SDK:** Download the current [Plugin SDK ZIP](https://developer.x-plane.com/sdk/plugin-sdk-downloads) and unpack so this repo has a top-level `SDK/` directory (`SDK/CHeaders/XPLM`, `SDK/Libraries/...`). The same headers build all platforms.
+
+**Windows:** From `src/`, use `Makefile.mgw64` with mingw-w64 (see comments in that file for OpenAL paths and optional `NO_OPENAL=1`). Quick PowerShell: `powershell -File scripts/fetch-sdk.ps1` then `powershell -File scripts/build-win-xpl.ps1` — output is `src/win.xpl`.
+
+**Linux:** Install a toolchain plus OpenAL headers (e.g. Debian/Ubuntu: `build-essential`, `libopenal-dev`). From `src/`: `make -f Makefile.lin64` (or `make -f Makefile.lin64 SDK=/path/to/SDK`). Use `NO_OPENAL=1` if you have no OpenAL dev package.
+
+**macOS:** Install Xcode command-line tools. From `src/`: `make -f Makefile.mac` for a universal **arm64 + x86_64** `mac.xpl`. Optional `NO_OPENAL=1`. Cross-building macOS binaries from Linux is not covered here; see `Makefile.osxcross` if you maintain that toolchain.
+
+**From repo root:** With `SDK/` beside `Makefile`, run `make linux`, `make mac`, or `make windows` (GNU make; optional `SDK=...`, `NO_OPENAL=1`).
+
+**CI:** GitHub Actions workflow `.github/workflows/build.yml` downloads SDK 4.3.0, builds **`win.xpl`**, **`lin.xpl`**, and **`mac.xpl`**, uploads each as an artifact, and zips all three into **`AutoGate-fat64.zip`** (layout `AutoGate/64/{win,lin,mac}.xpl`) as **`AutoGate-fat64-all-xpl`** for a ready-to-drop fat plugin `64` folder.
+
+**Getting `lin.xpl` on Windows:** Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), then run `powershell -File scripts/build-lin-xpl-docker.ps1`. That uses `Dockerfile.lin` to compile Linux binaries and copies **`src/lin.xpl`** into your tree.
+
+**Getting `mac.xpl` without a Mac:** Apple binaries cannot be produced on Windows. Push the repo to GitHub (include `.github/workflows/build.yml`), open **Actions → Build**, and download the **`mac-xpl`** artifact (or **`AutoGate-fat64-all-xpl`** for all three). With [GitHub CLI](https://cli.github.com/): `gh run download -n mac-xpl`.
+
 A linkable OpenAL32.dll for Windows was obtained as follows:
 - get copy of libOpenAL32.dll e.g. from FlyWithLua
 - pick libOpenAL's *include/AL* header files, e.g. from the msys2 system

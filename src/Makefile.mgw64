@@ -1,13 +1,14 @@
 .SUFFIXES: .obj
 
-include ..\version.mak
+include ../version.mak
 
 TARGET=win.xpl
 HEADERS=$(wildcard *.h)
 SOURCES=$(wildcard *.c)
 OBJECTS=$(SOURCES:.c=.o)
-SDK=../../../SDK/SDK
-OPENAL=../../../libOpenAL32
+# Unzip official SDK so repo root contains SDK/CHeaders/... (override with SDK=...).
+SDK?=../SDK
+OPENAL?=../libOpenAL32
 PLUGDIR=/e/X-Plane-12/Resources/plugins/AutoGate
 
 CC=x86_64-w64-mingw32-gcc

@@ -2,6 +2,9 @@ OBJ_*
 *.bak
 *.zip
 
+# Local X-Plane SDK (fetch with scripts/fetch-sdk.ps1; large — do not commit)
+SDK/
+
 *.blend1
 *.blend2
 *.blend3

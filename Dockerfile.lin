@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+# Build lin.xpl in Linux; export with BuildKit:
+#   docker build -f Dockerfile.lin --target artifact --output type=local,dest=./dist-lin .
+
+FROM ubuntu:22.04 AS build
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential ca-certificates curl unzip make libopenal-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+ARG XPSDK_URL=https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK430.zip
+RUN curl -fsSL -o /tmp/xpsdk.zip "${XPSDK_URL}" \
+ && unzip -q /tmp/xpsdk.zip -d /work \
+ && rm -f /tmp/xpsdk.zip
+
+COPY version.mak /work/version.mak
+COPY src /work/src
+
+WORKDIR /work/src
+RUN make -f Makefile.lin64 SDK=/work/SDK
+
+FROM scratch AS artifact
+COPY --from=build /work/src/lin.xpl /lin.xpl
