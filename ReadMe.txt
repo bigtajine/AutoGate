@@ -1,6 +1,12 @@
 AutoGate plugin
 ===============
 
+Fork note (this repository)
+---------------------------
+The Marginal-era kit notes below describe the original distribution. For the
+community Windows/XP12 fork, plugin release history (including **1.83** onward)
+is in `README.md` at the repository root; packaged summaries are in `release.txt`.
+
 
 Requirements
 ------------

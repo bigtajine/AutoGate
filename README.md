@@ -31,6 +31,9 @@ This project is community-maintained and is not officially affiliated with Lamin
 - Added runtime OpenAL fail-closed guards: if OpenAL calls start failing, alert audio is disabled for the session to prioritize sim stability.
 
 ### 1.84
+
+These Makefile updates shipped in the same first **1.84** tagged build as **1.83** below (fork `version.mak` jumped from **1.82**); the split is documentation-only.
+
 - Improved Windows build reliability in `src/Makefile.mgw64`:
   - Windows-friendly `clean` target.
   - Optional OpenAL build fallback (`NO_OPENAL`) when OpenAL dev files are missing.
