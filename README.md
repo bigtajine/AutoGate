@@ -14,6 +14,12 @@ This project is community-maintained and is not officially affiliated with Lamin
 
 ## Recent changes
 
+### 1.88
+- **Plugin Admin disable/enable:** If you turn AutoGate off and on at the same stand with the same aircraft (`acf_ICAO` unchanged), gate session state (including **DOCKED** and jetway `lat`/`vert`/`moving`) is restored instead of resetting to a fresh **NEWPLANE** / full re-dock sequence.
+
+### 1.87
+- During **replay** (`sim/time/is_in_replay`), the jetway pose is frozen and the gate/DGS state machine does not run, so replayed beacon/engine data cannot disconnect or drive the bridge.
+
 ### 1.86
 - Fixed jetway re-dock behavior after undocking while still parked on stand.
 - Resolved a state-machine edge case where AutoGate could remain in a non-rearm state

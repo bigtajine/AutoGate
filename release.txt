@@ -1,4 +1,4 @@
-AutoGate plugin - Release 1.86 (Windows)
+AutoGate plugin - Release 1.88 (Windows)
 ========================================
 
 This is an XP12-focused community fork build for Windows (`win.xpl`).
@@ -8,13 +8,30 @@ Base lineage
 - Upstream base: `Marginal/AutoGate`
 - Starting snapshot used: `hotbso/AutoGate` `1.82`
 
+Changes in 1.88
+---------------
+- When the plugin is disabled and re-enabled from Plugin Admin (same session, same
+  aircraft ICAO), AutoGate restores the previous gate session (state, gate origin,
+  DGS binding, jetway extension, beacon debounce) instead of running `newplane()`
+  from scratch — so a **DOCKED** jetway stays docked instead of replaying the
+  full engage animation.
+- `newplane()` / airport reload still clears this snapshot so a new airport or
+  aircraft load does not resurrect stale state.
+- Plugin version **1.88** (`version.mak`); includes **1.87** and earlier fixes below.
+
+Changes in 1.87
+---------------
+- During replay (`sim/time/is_in_replay`), jetway animation values are frozen for the
+  active gate and the gate/DGS state machine does not advance, so replayed cockpit
+  data does not undock or move the bridge.
+- One-shot gate alignment (`pending_reposition`) is not applied while replay is active.
+- Plugin version **1.87** (`version.mak`); includes **1.86** and **1.85** fixes below.
+
 Changes in 1.86
 ---------------
 - Fixed jetway re-dock behavior after undocking while still parked on stand.
 - Resolved a state-machine edge case that could keep AutoGate in a non-rearm state
   until the aircraft moved far enough from the stop box.
-- Packaged as **1.86**; plugin reports this version via `VERSION` in `version.mak`.
-- Includes the same fixes and behavior as the previous **1.85** notes below.
 
 Changes in 1.85
 ---------------

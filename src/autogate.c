@@ -34,6 +34,7 @@ static XPLMDataRef ref_acf_descrip, ref_acf_icao;
 static XPLMDataRef ref_acf_cg_y, ref_acf_cg_z;
 static XPLMDataRef ref_acf_door_x, ref_acf_door_y, ref_acf_door_z;
 static XPLMDataRef ref_total_running_time_sec;
+static XPLMDataRef ref_is_in_replay;
 
 /* Published DataRefs */
 static XPLMDataRef ref_vert, ref_lat, ref_moving;
@@ -61,9 +62,35 @@ static float last_dgs_update = 0;		/* and the time we examined it */
 static float dgs_x, dgs_y, dgs_z;		/* active DGS */
 static float running_state, beacon_last_pos, beacon_off_ts, beacon_on_ts;  /* running state, last switch_pos, ts of last switch action */
 
+/* Snapshot across Plugin Admin disable/enable (same session, same aircraft) */
+typedef struct {
+    int valid;
+    state_t state;
+    float timestamp;
+    char saved_acf_icao[41];
+    float gate_x, gate_y, gate_z, gate_h, gate_update;
+    int gate_autogate;
+    float pending_plane_x, pending_plane_z;
+    int pending_reposition;
+    float last_gate_x, last_gate_y, last_gate_z, last_gate_update;
+    float last_dgs_x, last_dgs_y, last_dgs_z, last_dgs_update;
+    float dgs_x, dgs_y, dgs_z;
+    float lat, vert, moving;
+    int status, id1, id2, id3, id4, lr, track;
+    int icao_snap[4];
+    float azimuth, distance, distance2;
+    float running_state, beacon_off_ts, beacon_on_ts;
+    int beacon_last_pos;
+} suspend_snapshot_t;
+
+static suspend_snapshot_t suspend;
+
 /* In this file */
 static float newplanecallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon);
+static void load_aircraft_profile(void);
 static void newplane(void);
+static void save_suspend_snapshot(void);
+static int try_restore_suspend_snapshot(void);
 static void resetidle(void);
 static int required_datarefs_present(void);
 
@@ -78,6 +105,7 @@ static int getdgsicao(XPLMDataRef, int*, int, int);
 
 static int localpos(float, float, float, float, float *, float *, float *);
 static void updaterefs(float, float, float, float);
+static int replay_mode_active(void);
 
 #ifdef DEBUG
 static void drawdebug(XPLMWindowID, void *);
@@ -225,6 +253,7 @@ PLUGIN_API int XPluginStart(char *outName, char *outSig, char *outDesc)
     ref_acf_door_y     =XPLMFindDataRef("sim/aircraft/view/acf_door_y");
     ref_acf_door_z     =XPLMFindDataRef("sim/aircraft/view/acf_door_z");
     ref_total_running_time_sec=XPLMFindDataRef("sim/time/total_running_time_sec");
+    ref_is_in_replay       =XPLMFindDataRef("sim/time/is_in_replay");
     ref_audio          =XPLMFindDataRef("sim/operation/sound/sound_on");
     ref_paused         =XPLMFindDataRef("sim/time/paused");
     ref_view_external  =XPLMFindDataRef("sim/graphics/view/view_is_external");
@@ -286,12 +315,14 @@ PLUGIN_API void XPluginStop(void)
 
 PLUGIN_API int XPluginEnable(void)
 {
-    newplane();
+    if (!try_restore_suspend_snapshot())
+        newplane();
     return 1;
 }
 
 PLUGIN_API void XPluginDisable(void)
 {
+    save_suspend_snapshot();
     resetidle();
     state=DISABLED;
 }
@@ -302,10 +333,15 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID inFromWho, int inMessage, voi
         newplane();
 }
 
+static int replay_mode_active(void)
+{
+    return ref_is_in_replay && XPLMGetDatai(ref_is_in_replay) != 0;
+}
+
 /* Reset new plane state after drawing */
 static float newplanecallback(float inElapsedSinceLastCall, float inElapsedTimeSinceLastFlightLoop, int inCounter, void *inRefcon)
 {
-    if (pending_reposition && ref_plane_x && ref_plane_z)
+    if (pending_reposition && ref_plane_x && ref_plane_z && !replay_mode_active())
     {
         /*
          * Apply the one-shot alignment adjustment from a flight loop callback,
@@ -320,17 +356,16 @@ static float newplanecallback(float inElapsedSinceLastCall, float inElapsedTimeS
     return 0;	/* Don't call again */
 }
 
-static void newplane(void)
+/* Door / type / DGS ICAO display from current aircraft (no gate state) */
+static void load_aircraft_profile(void)
 {
     char acf_descrip[129];
     char acf_icao[41];
     int i;
 
-    resetidle();
-    acf_descrip[128]=0;		/* Not sure if XPLMGetDatab NULL terminates */
-    acf_icao[40]=0;		/* Not sure if XPLMGetDatab NULL terminates */
+    acf_descrip[128]=0;
+    acf_icao[40]=0;
 
-    /* Find ICAO code */
     plane_type=15;	/* unknown */
     if (ref_acf_icao!=NULL && XPLMGetDatab(ref_acf_icao, acf_icao, 0, 40))
         for (i=0; i<sizeof(icaodb)/sizeof(icao_t); i++)
@@ -369,23 +404,157 @@ static void newplane(void)
 
     if (!door_x)
     {
-        state = IDLE;
         icao[0]=icao[1]=icao[2]=icao[3]=0;
+        return;
     }
-    else
-    {
-        int i;
-        state = NEWPLANE;	/* Check for alignment at a gate during next frame */
 
-        if (isupper(acf_icao[0]) || isdigit(acf_icao[0]))
-            /* DGS objects fall back to using id1-4 datarefs if first character of ICAO field is null */
-            for (i=0; i<4; i++)
-                icao[i] = (isupper(acf_icao[i]) || isdigit(acf_icao[i])) ? acf_icao[i] : ' ';
-        else
-            /* Display canonical ICAO type */
-            for (i=0; i<4; i++)
-                icao[i] = canonical[plane_type][i];
+    if (isupper(acf_icao[0]) || isdigit(acf_icao[0]))
+        /* DGS objects fall back to using id1-4 datarefs if first character of ICAO field is null */
+        for (i=0; i<4; i++)
+            icao[i] = (isupper(acf_icao[i]) || isdigit(acf_icao[i])) ? acf_icao[i] : ' ';
+    else
+        /* Display canonical ICAO type */
+        for (i=0; i<4; i++)
+            icao[i] = canonical[plane_type][i];
+}
+
+static void save_suspend_snapshot(void)
+{
+    char buf[41];
+
+    memset(&suspend, 0, sizeof(suspend));
+    buf[40]=0;
+    if (ref_acf_icao)
+        XPLMGetDatab(ref_acf_icao, buf, 0, 40);
+    memcpy(suspend.saved_acf_icao, buf, sizeof(suspend.saved_acf_icao));
+
+    /* Any active gate session (docked, approaching, undocking, etc.); not NEWPLANE (no gate yet). */
+    if (state > IDLE && state != NEWPLANE && (gate_x != 0.0f || gate_y != 0.0f || gate_z != 0.0f))
+    {
+        suspend.valid = 1;
+        suspend.state = state;
+        suspend.timestamp = timestamp;
+        suspend.gate_x = gate_x;
+        suspend.gate_y = gate_y;
+        suspend.gate_z = gate_z;
+        suspend.gate_h = gate_h;
+        suspend.gate_update = gate_update;
+        suspend.gate_autogate = gate_autogate;
+        suspend.pending_plane_x = pending_plane_x;
+        suspend.pending_plane_z = pending_plane_z;
+        suspend.pending_reposition = pending_reposition;
+        suspend.last_gate_x = last_gate_x;
+        suspend.last_gate_y = last_gate_y;
+        suspend.last_gate_z = last_gate_z;
+        suspend.last_gate_update = last_gate_update;
+        suspend.last_dgs_x = last_dgs_x;
+        suspend.last_dgs_y = last_dgs_y;
+        suspend.last_dgs_z = last_dgs_z;
+        suspend.last_dgs_update = last_dgs_update;
+        suspend.dgs_x = dgs_x;
+        suspend.dgs_y = dgs_y;
+        suspend.dgs_z = dgs_z;
+        suspend.lat = lat;
+        suspend.vert = vert;
+        suspend.moving = moving;
+        suspend.status = status;
+        suspend.id1 = id1;
+        suspend.id2 = id2;
+        suspend.id3 = id3;
+        suspend.id4 = id4;
+        suspend.lr = lr;
+        suspend.track = track;
+        memcpy(suspend.icao_snap, icao, sizeof(icao));
+        suspend.azimuth = azimuth;
+        suspend.distance = distance;
+        suspend.distance2 = distance2;
+        suspend.running_state = running_state;
+        suspend.beacon_off_ts = beacon_off_ts;
+        suspend.beacon_on_ts = beacon_on_ts;
+        suspend.beacon_last_pos = beacon_last_pos;
     }
+}
+
+static int try_restore_suspend_snapshot(void)
+{
+    char cur[41];
+
+    if (!suspend.valid)
+        return 0;
+
+    cur[40]=0;
+    if (!ref_acf_icao || !XPLMGetDatab(ref_acf_icao, cur, 0, 40))
+    {
+        suspend.valid = 0;
+        return 0;
+    }
+    if (strncmp(cur, suspend.saved_acf_icao, 40) != 0)
+    {
+        suspend.valid = 0;
+        return 0;
+    }
+
+    load_aircraft_profile();
+    if (!door_x)
+    {
+        suspend.valid = 0;
+        return 0;
+    }
+
+    state = suspend.state;
+    timestamp = suspend.timestamp;
+    gate_x = suspend.gate_x;
+    gate_y = suspend.gate_y;
+    gate_z = suspend.gate_z;
+    gate_h = suspend.gate_h;
+    gate_update = suspend.gate_update;
+    gate_autogate = suspend.gate_autogate;
+    pending_plane_x = suspend.pending_plane_x;
+    pending_plane_z = suspend.pending_plane_z;
+    pending_reposition = suspend.pending_reposition;
+    last_gate_x = suspend.last_gate_x;
+    last_gate_y = suspend.last_gate_y;
+    last_gate_z = suspend.last_gate_z;
+    last_gate_update = suspend.last_gate_update;
+    last_dgs_x = suspend.last_dgs_x;
+    last_dgs_y = suspend.last_dgs_y;
+    last_dgs_z = suspend.last_dgs_z;
+    last_dgs_update = suspend.last_dgs_update;
+    dgs_x = suspend.dgs_x;
+    dgs_y = suspend.dgs_y;
+    dgs_z = suspend.dgs_z;
+    lat = suspend.lat;
+    vert = suspend.vert;
+    moving = suspend.moving;
+    status = suspend.status;
+    id1 = suspend.id1;
+    id2 = suspend.id2;
+    id3 = suspend.id3;
+    id4 = suspend.id4;
+    lr = suspend.lr;
+    track = suspend.track;
+    memcpy(icao, suspend.icao_snap, sizeof(icao));
+    azimuth = suspend.azimuth;
+    distance = suspend.distance;
+    distance2 = suspend.distance2;
+    running_state = suspend.running_state;
+    beacon_off_ts = suspend.beacon_off_ts;
+    beacon_on_ts = suspend.beacon_on_ts;
+    beacon_last_pos = suspend.beacon_last_pos;
+
+    suspend.valid = 0;
+    return 1;
+}
+
+static void newplane(void)
+{
+    suspend.valid = 0;
+    resetidle();
+    load_aircraft_profile();
+    if (!door_x)
+        state = IDLE;
+    else
+        state = NEWPLANE;	/* Check for alignment at a gate during next frame */
 }
 
 static void resetidle(void)
@@ -462,6 +631,18 @@ static float getgatefloat(XPLMDataRef inRefcon)
 
     if (!required_datarefs_present())
         return 0;
+
+    /* Replay drives beacon/engines from the recording; do not run the gate state
+     * machine or reset idle — freeze jetway pose for this gate object. */
+    if (replay_mode_active())
+    {
+        object_x = XPLMGetDataf(ref_draw_object_x);
+        object_y = XPLMGetDataf(ref_draw_object_y);
+        object_z = XPLMGetDataf(ref_draw_object_z);
+        if (state > IDLE && gate_x == object_x && gate_y == object_y && gate_z == object_z)
+            return *(float *)inRefcon;
+        return 0;
+    }
 
     now = XPLMGetDataf(ref_total_running_time_sec);
     object_x = XPLMGetDataf(ref_draw_object_x);
@@ -713,8 +894,13 @@ static int required_datarefs_present(void)
 /* Update published data used by gate and dgs */
 static void updaterefs(float now, float local_x, float local_y, float local_z)
 {
-    int locgood=(fabsf(local_x)<=AZI_X && fabsf(local_z)<=GOOD_Z);
-    int running = check_running();
+    int locgood, running;
+
+    if (replay_mode_active())
+        return;
+
+    locgood=(fabsf(local_x)<=AZI_X && fabsf(local_z)<=GOOD_Z);
+    running = check_running();
 
     status=id1=id2=id3=id4=lr=track=0;
     azimuth=distance=distance2=0;
