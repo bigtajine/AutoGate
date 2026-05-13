@@ -1,6 +1,7 @@
 OBJ_*
 *.bak
 *.zip
+*.xpl
 
 # Local X-Plane SDK (fetch with scripts/fetch-sdk.ps1; large — do not commit)
 SDK/
@@ -11,3 +12,5 @@ SDK/
 
 .DS_Store
 Thumbs.db
+
+release.txt
