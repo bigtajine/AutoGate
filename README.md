@@ -14,6 +14,12 @@ This project is community-maintained and is not officially affiliated with Lamin
 
 ## Recent changes
 
+### 1.89
+- Fork release **1.89** (`version.mak`).
+- **Linux** (`lin.xpl`) and **macOS** (`mac.xpl`, universal arm64 + x86_64) are first-class build targets via `src/Makefile.lin64` and `src/Makefile.mac`; GitHub Actions builds **win**, **lin**, and **mac** `.xpl` files and packages a fat **`64`** layout zip.
+- **Windows:** `Makefile.mgw64` expects the official SDK under repo **`SDK/`**; use `scripts/fetch-sdk.ps1` and `scripts/build-win-xpl.ps1` for a quick local **win.xpl** build.
+- **Docker:** `Dockerfile.lin` and `scripts/build-lin-xpl-docker.ps1` compile **lin.xpl** on Windows when Docker is working (Ubuntu base from AWS Public ECR to reduce Docker Hub TLS issues on some networks).
+
 ### 1.88
 - **Plugin Admin disable/enable:** If you turn AutoGate off and on at the same stand with the same aircraft (`acf_ICAO` unchanged), gate session state (including **DOCKED** and jetway `lat`/`vert`/`moving`) is restored instead of resetting to a fresh **NEWPLANE** / full re-dock sequence.
 

@@ -1,8 +1,11 @@
 # syntax=docker/dockerfile:1
 # Build lin.xpl in Linux; export with BuildKit:
 #   docker build -f Dockerfile.lin --target artifact --output type=local,dest=./dist-lin .
+#
+# Base image: AWS public mirror of Ubuntu (avoids Docker Hub CDN TLS issues some
+# networks hit with docker-images-prod.*.cloudflarestorage.com).
 
-FROM ubuntu:22.04 AS build
+FROM public.ecr.aws/ubuntu/ubuntu:22.04 AS build
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
