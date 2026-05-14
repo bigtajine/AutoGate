@@ -737,8 +737,11 @@ static float getgatefloat(XPLMDataRef inRefcon)
         gate_z=object_z;
         gate_h=object_h;
 
-        if ((float*)inRefcon == &lat)	/* Standalone DGS dummy gate only uses vert */
-            gate_autogate = -1;		/* Relies on lat occurring in the .obj file before vert */
+        /* Mark animated AutoGate: any of lat/vert/moving may be evaluated first
+         * in a frame (scenery/.obj order). Requiring &lat alone left gate_autogate 0
+         * when vert or moving ran first — jetway moves but alert never plays. */
+        if ((float*)inRefcon == &lat || (float*)inRefcon == &vert || (float*)inRefcon == &moving)
+            gate_autogate = -1;
     }
 
     gate_update = now;
@@ -866,16 +869,11 @@ static int localpos(float object_x, float object_y, float object_z, float object
     plane_z=XPLMGetDataf(ref_plane_z);
     plane_h=XPLMGetDataf(ref_plane_psi) * D2R;
 
-    /* Door threshold in world (horizontal plane; pitch/roll ignored).
-     * Rotate full (door_x, door_z) by aircraft heading: older code only used door_z,
-     * so lateral door_x from Plane Maker was ignored and the bridge missed side-by-side doors. */
-    {
-        float phcos = cosf(plane_h);
-        float phsin = sinf(plane_h);
-        x = plane_x + door_x * phcos - door_z * phsin;
-        y = plane_y + door_y;
-        z = plane_z + door_x * phsin + door_z * phcos;
-    }
+    /* Location of plane's centreline opposite door */
+    /* Calculation assumes plane is horizontal */
+    x=plane_x-door_z*sinf(plane_h);
+    y=plane_y+door_y;
+    z=plane_z+door_z*cosf(plane_h);
 
     /* Location of centreline opposite door in this gate's space */
     object_hcos = cosf(object_h);
