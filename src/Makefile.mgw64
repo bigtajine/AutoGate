@@ -8,7 +8,6 @@ SOURCES=$(wildcard *.c)
 OBJECTS=$(SOURCES:.c=.o)
 # Unzip official SDK so repo root contains SDK/CHeaders/... (override with SDK=...).
 SDK?=../SDK
-OPENAL?=../libOpenAL32
 PLUGDIR=/e/X-Plane-12/Resources/plugins/AutoGate
 
 CC=x86_64-w64-mingw32-gcc
@@ -20,19 +19,32 @@ override CFLAGS+=-mdll -g0 -O2 -s -Wall -fdiagnostics-color -Wno-format-overflow
 LDFLAGS=-shared -static-libgcc -static -lpthread
 LIBS= -L$(SDK)/Libraries/Win -lXPLM_64
 
-# Optional OpenAL support: compile without audio when OpenAL dev files are missing.
-OPENAL_HEADER:=$(wildcard $(OPENAL)/AL/al.h)
-OPENAL_IMPORT:=$(wildcard $(OPENAL)/libopenal32.a)
+# OpenAL: prefer bundled openal-soft (../openal-soft-1.25.1-bin); else legacy ../libOpenAL32.
+OPENAL_SOFT?=../openal-soft-1.25.1-bin
+OPENAL_LEGACY?=../libOpenAL32
 
+OPENAL_HEADER:=$(wildcard $(OPENAL_SOFT)/include/AL/al.h)
+OPENAL_IMPORT:=$(wildcard $(OPENAL_SOFT)/libs/Win64/libOpenAL32.dll.a)
 ifneq ($(strip $(OPENAL_HEADER)),)
 ifneq ($(strip $(OPENAL_IMPORT)),)
-override CFLAGS+= -I$(OPENAL)
-LIBS+= -L$(OPENAL) -lopenal32
+override CFLAGS+= -I$(OPENAL_SOFT)/include
+LIBS+= -L$(OPENAL_SOFT)/libs/Win64 -lopenal32
+else
+override CFLAGS+= -DNO_OPENAL
+endif
+else
+OPENAL_HEADER:=$(wildcard $(OPENAL_LEGACY)/AL/al.h)
+OPENAL_IMPORT:=$(wildcard $(OPENAL_LEGACY)/libopenal32.a)
+ifneq ($(strip $(OPENAL_HEADER)),)
+ifneq ($(strip $(OPENAL_IMPORT)),)
+override CFLAGS+= -I$(OPENAL_LEGACY)
+LIBS+= -L$(OPENAL_LEGACY) -lopenal32
 else
 override CFLAGS+= -DNO_OPENAL
 endif
 else
 override CFLAGS+= -DNO_OPENAL
+endif
 endif
 
 

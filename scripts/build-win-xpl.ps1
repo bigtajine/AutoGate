@@ -18,7 +18,7 @@ if (-not $mingwBin) { throw "mingw32-make / x86_64-w64-mingw32-gcc not found in 
 $env:Path = "$mingwBin;$env:Path"
 Push-Location $src
 try {
-    & mingw32-make.exe -f Makefile.mgw64 SDK=../SDK NO_OPENAL=1
+    & mingw32-make.exe -f Makefile.mgw64 SDK=../SDK
     if ($LASTEXITCODE -ne 0) { throw "make failed with $LASTEXITCODE" }
     $out = Join-Path $src "win.xpl"
     if (-not (Test-Path $out)) { throw "Expected output missing: $out" }

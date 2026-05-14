@@ -14,10 +14,11 @@ This project is community-maintained and is not officially affiliated with Lamin
 
 ## Recent changes
 
-### 1.89
-- Fork release **1.89** (`version.mak`).
+### 1.9
+- Fork release **1.9** (`version.mak`).
+- **Door alignment:** `localpos()` now rotates **`acf_door_x`** with aircraft heading together with **`acf_door_z`** (lateral door offset from Plane Maker was previously ignored).
 - **Linux** (`lin.xpl`) and **macOS** (`mac.xpl`, universal arm64 + x86_64) are first-class build targets via `src/Makefile.lin64` and `src/Makefile.mac`; GitHub Actions builds **win**, **lin**, and **mac** `.xpl` files and packages a fat **`64`** layout zip.
-- **Windows:** `Makefile.mgw64` expects the official SDK under repo **`SDK/`**; use `scripts/fetch-sdk.ps1` and `scripts/build-win-xpl.ps1` for a quick local **win.xpl** build.
+- **Windows:** `Makefile.mgw64` uses bundled **`openal-soft-1.25.1-bin`** when present (else **`libOpenAL32`**); official SDK under repo **`SDK/`**; `scripts/fetch-sdk.ps1` and `scripts/build-win-xpl.ps1` for local **win.xpl** with OpenAL by default.
 - **Docker:** `Dockerfile.lin` and `scripts/build-lin-xpl-docker.ps1` compile **lin.xpl** on Windows when Docker is working (Ubuntu base from AWS Public ECR to reduce Docker Hub TLS issues on some networks).
 
 ### 1.88

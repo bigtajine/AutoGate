@@ -866,11 +866,16 @@ static int localpos(float object_x, float object_y, float object_z, float object
     plane_z=XPLMGetDataf(ref_plane_z);
     plane_h=XPLMGetDataf(ref_plane_psi) * D2R;
 
-    /* Location of plane's centreline opposite door */
-    /* Calculation assumes plane is horizontal */
-    x=plane_x-door_z*sinf(plane_h);
-    y=plane_y+door_y;
-    z=plane_z+door_z*cosf(plane_h);
+    /* Door threshold in world (horizontal plane; pitch/roll ignored).
+     * Rotate full (door_x, door_z) by aircraft heading: older code only used door_z,
+     * so lateral door_x from Plane Maker was ignored and the bridge missed side-by-side doors. */
+    {
+        float phcos = cosf(plane_h);
+        float phsin = sinf(plane_h);
+        x = plane_x + door_x * phcos - door_z * phsin;
+        y = plane_y + door_y;
+        z = plane_z + door_x * phsin + door_z * phcos;
+    }
 
     /* Location of centreline opposite door in this gate's space */
     object_hcos = cosf(object_h);

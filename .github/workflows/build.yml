@@ -61,7 +61,7 @@ jobs:
       - name: Build win.xpl
         shell: msys2 {0}
         working-directory: src
-        run: mingw32-make -f Makefile.mgw64 SDK="../SDK" NO_OPENAL=1
+        run: mingw32-make -f Makefile.mgw64 SDK="../SDK"
       - uses: actions/upload-artifact@v4
         with:
           name: win-xpl
