@@ -59,11 +59,12 @@ static const float OBJ_Y=  4;
 /* Capture distances [m] (to door location, not ref point) */
 static const float CAP_X = 10;
 static const float CAP_Z = 70;	/* (50-80 in Safedock2 flier) */
-static const float GOOD_Z= 0.5;
+static const float GOOD_Z= 1.0;	/* Longitudinal tolerance at stop [m] (was 0.5) */
+static const float BAD_OVERSHOOT_Z= 1.5;	/* Past stop before "too far" [m] */
 static const float NEW_Z = 20;	/* Max distance to fudge new Ramp Start */
 
 /* DGS distances [m]     (to door location, not ref point) */
-static const float AZI_X = 5;	/* Azimuth guidance */
+static const float AZI_X = 7;	/* Azimuth guidance / lateral at stop [m] (was 5) */
 static const float AZI_Z = 50;	/* Azimuth guidance */
 static const float REM_Z = 12;	/* Distance remaining */
 

@@ -14,13 +14,14 @@ This project is community-maintained and is not officially affiliated with Lamin
 
 ## Recent changes
 
+### 1.91
+- **Relaxed docking tolerances:** the jetway can engage when the aircraft door is within **1 m** longitudinally and **7 m** laterally of the stop line (was **0.5 m** / **5 m**). Overshoot **“too far”** only triggers past **1.5 m** beyond the line (was **0.5 m**).
+
 ### 1.90
-- Fork release **1.90** (`version.mak`).
 - **Alert sound:** fixed jetway moving without beep when X‑Plane evaluated **`vert`** or **`moving`** before **`lat`** the first frame in range (`gate_autogate` never armed); any of **`lat` / `vert` / `moving`** now arms alerts.
 - **Windows build:** `Makefile.mgw64` links OpenAL from bundled **`openal-soft-1.25.1-bin`** when present (otherwise `../libOpenAL32` or **`NO_OPENAL=1`**).
 
 ### 1.89
-- Fork release **1.89** (`version.mak`).
 - **Linux** (`lin.xpl`) and **macOS** (`mac.xpl`, universal arm64 + x86_64) are first-class build targets via `src/Makefile.lin64` and `src/Makefile.mac`; GitHub Actions builds **win**, **lin**, and **mac** `.xpl` files and packages a fat **`64`** layout zip.
 - **Windows:** `Makefile.mgw64` expects the official SDK under repo **`SDK/`**; use `scripts/fetch-sdk.ps1` and `scripts/build-win-xpl.ps1` for a quick local **win.xpl** build.
 - **Docker:** `Dockerfile.lin` and `scripts/build-lin-xpl-docker.ps1` compile **lin.xpl** on Windows when Docker is working (Ubuntu base from AWS Public ECR to reduce Docker Hub TLS issues on some networks).
@@ -98,7 +99,7 @@ To re-enable normal audio behavior, remove/unset the variable or set it to `0`.
 
 ## Original README
 This kit allows [X-Plane](http://www.x-plane.com/) scenery designers to add animated jetways and docking guidance systems (DGS) to scenery packages. Two types of jetway and four types of DGS are included.
- 
+
 The jetway animates to dock with the plane's main door when the pilot shuts down the plane's engines with the plane within ½m of the correct stopping position. The DGS guides the pilot to the correct stopping position.
 
 An example scenery package that uses these boarding bridges and DGSs can be found [here](http://marginal.org.uk/x-planescenery/tutorials.html#autogate).

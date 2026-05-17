@@ -921,7 +921,7 @@ static void updaterefs(float now, float local_x, float local_y, float local_z)
             state=GOOD;
             timestamp=now;
         }
-        else if (local_z<-GOOD_Z)
+        else if (local_z<-BAD_OVERSHOOT_Z)
             state=BAD;
         else
         {
@@ -983,7 +983,7 @@ static void updaterefs(float now, float local_x, float local_y, float local_z)
         break;
 
     case BAD:
-        if (local_z>=-GOOD_Z)
+        if (local_z>=-BAD_OVERSHOOT_Z)
             state=TRACK;
         else
         {
