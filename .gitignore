@@ -14,3 +14,7 @@ SDK/
 Thumbs.db
 
 release.txt
+
+# Build output / vendored binaries (fetch or build locally, don't commit)
+dist-lin/
+openal-soft-*-bin/

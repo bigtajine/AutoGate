@@ -103,7 +103,28 @@ This kit allows [X-Plane](http://www.x-plane.com/) scenery designers to add anim
 The jetway animates to dock with the plane's main door when the pilot shuts down the plane's engines with the plane within ½m of the correct stopping position. The DGS guides the pilot to the correct stopping position.
 
 An example scenery package that uses these boarding bridges and DGSs can be found [here](http://marginal.org.uk/x-planescenery/tutorials.html#autogate).
- 
+
+### Requirements
+* X-Plane 9.70 or 10.10 and later (this fork targets XP12)
+* Windows, Mac OS 10.5+, or Linux
+* Scenery package with AutoGate Docking Guidance Systems (DGSs)
+
+### Installation
+* Quit X-Plane if you have it running.
+* Remove any existing AutoGate plugin from your X-Plane/Resources/plugins folder.
+* Copy the "AutoGate" folder into your X-Plane/Resources/plugins folder.
+* Re-start X-Plane.
+* Verify installation on the Plugins → Plugin Admin → Plugin Information screen.
+
+### Operation
+* The DGS lights up as you approach the gate and displays your plane's distance and offset from the stopping point. See `Pilot Instructions, Type 2S display.pdf` for details.
+* The AutoGate animated jetway (if included in the scenery package) docks with your plane once you've engaged the parking brake and stopped your engines.
+* On departure, the jetway undocks when you disengage the parking brake and/or start your engines.
+
+### Compatible Planes
+* Works with any plane that has a "boarding door location" entered on the Standard → Viewpoint screen in Plane-Maker.
+* DGSs display aircraft model numbers if a valid "ICAO code" has been entered on the Standard → Viewpoint screen.
+
 ## License
 
 The plugin code in the `src` directory is licensed under the GNU [LGPL v2.1](http://www.gnu.org/licenses/lgpl-2.1-standalone.html) license.
